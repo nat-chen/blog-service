@@ -1,12 +1,12 @@
 package com.natchen.blog.controller;
 
 import com.natchen.blog.entity.User;
+import com.natchen.blog.service.UserService;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
@@ -16,32 +16,39 @@ import java.util.Map;
 
 @Controller
 public class AuthController {
-    private UserDetailsService userDetailsService;
+    private UserService userService;
     private AuthenticationManager authenticationManager;
 
     @Inject
-    public AuthController(UserDetailsService userDetailsService,
+    public AuthController(UserService userService,
                           AuthenticationManager authenticationManager) {
-        this.userDetailsService = userDetailsService;
+        this.userService = userService;
         this.authenticationManager = authenticationManager;
     }
 
     @GetMapping("/auth")
     @ResponseBody
     public Result auth() {
-        return new Result("ok", "没有登录", false);
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+        User loggedInUser = userService.getUserByUsername(username);
+
+        if (loggedInUser == null) {
+            return new Result("ok", "用户没有登录", false);
+        } else {
+            return new Result("ok", "success", true, loggedInUser);
+        }
     }
 
     @PostMapping("/auth/login")
     @ResponseBody
-    public Result login(@RequestBody Map<String, String> usernameAndPassword) {
-        String username = usernameAndPassword.get("username");
-        String password = usernameAndPassword.get("password");
+    public Result login(@RequestBody Map<String, Object> usernameAndPassword) {
+        String username = usernameAndPassword.get("username").toString();
+        String password = usernameAndPassword.get("password").toString();
 
-        UserDetails userDetails = null;
+        UserDetails userDetails;
 
         try {
-            userDetails = userDetailsService.loadUserByUsername(username);
+            userDetails = userService.loadUserByUsername(username);
         } catch (UsernameNotFoundException e) {
             return new Result("fail", "用户不存在", false);
         }
@@ -50,10 +57,9 @@ public class AuthController {
 
         try {
             authenticationManager.authenticate(token);
+            //save cookie
             SecurityContextHolder.getContext().setAuthentication(token);
-
-            User loggedUser = new User(1, "nat");
-            return new Result("ok", "登录成功", true, loggedUser);
+            return new Result("ok", "登录成功", true, userService.getUserByUsername(username));
         } catch (BadCredentialsException e) {
             return new Result("fail", "密码不正确",false, null);
         }
@@ -73,6 +79,7 @@ public class AuthController {
             this.status = status;
             this.msg = msg;
             this.isLogin = isLogin;
+            this.data = loggedUser;
         }
 
         public String getStatus() {
@@ -85,6 +92,10 @@ public class AuthController {
 
         public boolean isLogin() {
             return isLogin;
+        }
+
+        public Object getData() {
+            return data;
         }
     }
 }
