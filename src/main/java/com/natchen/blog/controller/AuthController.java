@@ -1,7 +1,9 @@
 package com.natchen.blog.controller;
 
+import com.natchen.blog.entity.Result;
 import com.natchen.blog.entity.User;
 import com.natchen.blog.service.UserService;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -33,9 +35,49 @@ public class AuthController {
         User loggedInUser = userService.getUserByUsername(username);
 
         if (loggedInUser == null) {
-            return new Result("ok", "用户没有登录", false);
+            return Result.success("用户没有登录", false, null);
         } else {
-            return new Result("ok", "success", true, loggedInUser);
+            return Result.success("success", true, loggedInUser);
+        }
+    }
+
+    @GetMapping("/auth/logout")
+    @ResponseBody
+    public Object logout() {
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+        User loggedUser = userService.getUserByUsername(username);
+
+        if (loggedUser == null) {
+            return Result.failure("用户没有登录", false);
+        } else {
+            SecurityContextHolder.clearContext();
+            return Result.success("success", false, null);
+        }
+    }
+
+    @PostMapping("/auth/register")
+    @ResponseBody
+    public Result register(@RequestBody Map<String, String> usernameAndPassword) {
+        String username = usernameAndPassword.get("username");
+        String password = usernameAndPassword.get("password");
+
+        if (username == null || password == null) {
+            return Result.failure("username/password == null", false);
+        }
+
+        if (username.length() < 1 || username.length() > 15) {
+            return Result.failure("invalid username", false);
+        }
+
+        if (password.length() < 1 || password.length() > 15) {
+            return Result.failure("invalid password", false);
+        }
+
+        try {
+            userService.save(username, password);
+            return Result.success("success", false, null);
+        } catch (DuplicateKeyException e) {
+            return Result.failure("user already exists", false);
         }
     }
 
@@ -50,7 +92,7 @@ public class AuthController {
         try {
             userDetails = userService.loadUserByUsername(username);
         } catch (UsernameNotFoundException e) {
-            return new Result("fail", "用户不存在", false);
+            return Result.failure( "用户不存在", false);
         }
 
         UsernamePasswordAuthenticationToken token = new UsernamePasswordAuthenticationToken(userDetails, password);
@@ -59,43 +101,9 @@ public class AuthController {
             authenticationManager.authenticate(token);
             //save cookie
             SecurityContextHolder.getContext().setAuthentication(token);
-            return new Result("ok", "登录成功", true, userService.getUserByUsername(username));
+            return Result.success("登录成功", true, userService.getUserByUsername(username));
         } catch (BadCredentialsException e) {
-            return new Result("fail", "密码不正确",false, null);
-        }
-    }
-
-    private static class Result {
-        String status;
-        String msg;
-        boolean isLogin;
-        Object data;
-
-        public Result(String status, String msg, boolean isLogin) {
-            this(status, msg, isLogin, null);
-        }
-
-        public Result(String status, String msg, boolean isLogin, User loggedUser) {
-            this.status = status;
-            this.msg = msg;
-            this.isLogin = isLogin;
-            this.data = loggedUser;
-        }
-
-        public String getStatus() {
-            return status;
-        }
-
-        public String getMsg() {
-            return msg;
-        }
-
-        public boolean isLogin() {
-            return isLogin;
-        }
-
-        public Object getData() {
-            return data;
+            return Result.failure("密码不正确",false);
         }
     }
 }
