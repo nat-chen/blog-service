@@ -50,7 +50,7 @@ class AuthControllerTest {
     @Test
     void returnNotLoginByDefault() throws Exception {
         mvc.perform(get("/auth")).andExpect(status().isOk())
-                .andExpect(result -> Assertions.assertTrue(result.getResponse().getContentAsString().contains(
+                .andExpect(result -> Assertions.assertTrue(result.getResponse().getContentAsString(StandardCharsets.UTF_8).contains(
                         "用户没有登录")));
     }
 
